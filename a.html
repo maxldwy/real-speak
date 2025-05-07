@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <title>语音听写 + 录音上传 Demo</title>
+</head>
+
+<body>
+  <h1>语音听写 + 录音上传</h1>
+  <button id="start">开始录音</button>
+  <button id="stop">停止录音</button>
+  <p><strong>识别结果:</strong></p>
+  <div id="output" style="border:1px solid #ccc; padding:10px; width: 400px;"></div>
+  <p><strong>录音结果:</strong></p>
+  <video id="preview" controls></video>
+
+  <ul>
+    <li>必须在 HTTPS 页面 或 localhost 上运行（出于安全性）。</li>
+    <li>必须由用户交互触发（点击按钮），才能启动识别。</li>
+    <li>iOS Safari 不支持这个 API，建议使用 Chrome 桌面或 Android 上的 Chrome 浏览器。</li>
+  </ul>
+
+  <ul>
+    <li>用 Web Speech API 实时转文字（如你之前做的）。</li>
+    <li>用 MediaRecorder API 录下用户的音频，然后将音频数据（如 Blob）上传给你的服务器接口。</li>
+  </ul>
+
+
+  <script>
+    // 检查浏览器支持
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("你的浏览器不支持 SpeechRecognition API，请使用 Chrome。");
+    } else {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'zh-CN'; // 中文识别
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      const output = document.getElementById('output');
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        output.innerText = transcript;
+      };
+      recognition.onerror = (event) => {
+        console.error('识别错误:', event.error);
+      };
+      document.getElementById('start').onclick = () => {
+        recognition.start();
+        startRecording();
+      };
+      document.getElementById('stop').onclick = () => {
+        recognition.stop();
+        mediaRecorder.stop();
+      };
+
+      // 录音相关
+      let mediaRecorder;
+      let audioChunks = [];
+      async function startRecording() {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = event => {
+          audioChunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+
+          // 创建临时 URL
+          const audioUrl = URL.createObjectURL(audioBlob);
+          // 设置给 video 标签播放
+          const preview = document.getElementById('preview');
+          preview.src = audioUrl;
+
+          // 上传音频到接口
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+          // fetch('https://your-api-endpoint.com/upload', {
+          //   method: 'POST',
+          //   body: formData
+          // })
+          //   .then(res => res.json())
+          //   .then(data => {
+          //     console.log('上传成功', data);
+          //   })
+          //   .catch(err => {
+          //     console.error('上传失败', err);
+          //   });
+        };
+        mediaRecorder.start();
+      }
+    }
+  </script>
+</body>
+
+</html>
